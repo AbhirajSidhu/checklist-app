@@ -89,9 +89,13 @@
                 body: JSON.stringify({ text })
             });
             const newTask = await res.json();
+            
+            // Explicitly make sure parent_id is null so renderParent handles it perfectly
+            newTask.parent_id = null; 
             renderParent(newTask);
+            
             itemInput.value = '';
-        }
+        }       
 
         function renderParent(task) {
             const taskNode = document.createElement('div');
