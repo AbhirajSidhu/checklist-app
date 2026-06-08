@@ -5,20 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Checklist</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #121214; color: #e1e1e6; display: flex; justify-content: center; padding-top: 50px; margin: 0; }
-        .container { background-color: #1a1a1e; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); width: 100%; max-width: 450px; }
-        h1 { margin-top: 0; font-size: 24px; color: #fff; text-align: center; }
-        .input-area { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { flex: 1; padding: 12px; border: 1px solid #2e2e35; border-radius: 6px; background-color: #202024; color: #fff; font-size: 16px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #121214; color: #e1e1e6; display: flex; justify-content: center; padding-top: 30px; margin: 0; }
+        .container { background-color: #1a1a1e; padding: 20px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); width: 100%; max-width: 500px; }
+        h1 { margin-top: 0; font-size: 20px; color: #fff; text-align: center; margin-bottom: 15px; }
+        
+        /* Compact Input Styling */
+        .input-area { display: flex; gap: 6px; margin-bottom: 15px; }
+        input[type="text"] { flex: 1; padding: 8px 12px; border: 1px solid #2e2e35; border-radius: 4px; background-color: #202024; color: #fff; font-size: 14px; }
         input[type="text"]:focus { outline: 2px solid #04d361; }
-        button { padding: 12px 20px; background-color: #04d361; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        
+        /* Smaller buttons */
+        button { padding: 8px 14px; background-color: #04d361; color: #000; border: none; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; }
         button:hover { background-color: #02b351; }
+        
         ul { list-style: none; padding: 0; margin: 0; }
-        li { display: flex; align-items: center; justify-content: space-between; padding: 12px; background-color: #202024; border: 1px solid #2e2e35; border-radius: 6px; margin-bottom: 10px; }
-        .item-left { display: flex; align-items: center; gap: 12px; font-size: 16px; }
-        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #04d361; }
-        li.completed .item-text { text-decoration: line-through; color: #7c7c8a; }
-        .delete-btn { background: none; color: #f75a68; border: none; font-size: 14px; cursor: pointer; }
+        
+        /* Compact Parent Task styling */
+        .task-node { margin-bottom: 6px; }
+        .task-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background-color: #202024; border: 1px solid #2e2e35; border-radius: 4px; }
+        
+        /* Sublist nesting */
+        .sublist { margin-left: 24px; margin-top: 4px; border-left: 2px solid #2e2e35; padding-left: 8px; }
+        .subtask-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background-color: #1a1a1e; border: 1px dashed #2e2e35; border-radius: 4px; margin-bottom: 4px; }
+
+        .item-left { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        
+        /* Shrunk Checkboxes */
+        input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: #04d361; margin: 0; }
+        
+        .completed .item-text { text-decoration: line-through; color: #7c7c8a; }
+        
+        /* Ultra-compact action items */
+        .actions { display: flex; gap: 8px; align-items: center; }
+        .sub-btn { background: none; color: #04d361; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; }
+        .sub-btn:hover { text-decoration: underline; }
+        .delete-btn { background: none; color: #f75a68; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; }
+        .delete-btn:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -26,7 +48,7 @@
     <div class="container">
         <h1>☁️ Cloud Checklist</h1>
         <div class="input-area">
-            <input type="text" id="itemInput" placeholder="Add a new task..." autocomplete="off">
+            <input type="text" id="itemInput" placeholder="Add a main task..." autocomplete="off">
             <button onclick="addItem()">Add</button>
         </div>
         <ul id="checklist"></ul>
@@ -36,16 +58,25 @@
         const itemInput = document.getElementById('itemInput');
         const checklist = document.getElementById('checklist');
 
-        // Load tasks from backend database on startup
         document.addEventListener('DOMContentLoaded', loadTasks);
-
         itemInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addItem(); });
 
         async function loadTasks() {
             checklist.innerHTML = '';
             const res = await fetch('/api/tasks');
             const tasks = await res.json();
-            tasks.forEach(task => renderTask(task));
+            
+            // Separate parents from subtasks
+            const parents = tasks.filter(t => !t.parent_id);
+            const subs = tasks.filter(t => t.parent_id);
+
+            // Render main tasks first
+            parents.forEach(parent => {
+                renderParent(parent);
+                // Immediately render its children right beneath it
+                const children = subs.filter(s => s.parent_id === parent.id);
+                children.forEach(child => renderSubtask(child));
+            });
         }
 
         async function addItem() {
@@ -58,47 +89,77 @@
                 body: JSON.stringify({ text })
             });
             const newTask = await res.json();
-            renderTask(newTask);
+            renderParent(newTask);
             itemInput.value = '';
         }
 
-        function renderTask(task) {
-            const li = document.createElement('li');
-            if (task.completed) li.classList.add('completed');
+        function renderParent(task) {
+            const taskNode = document.createElement('div');
+            taskNode.className = 'task-node';
+            taskNode.id = `node-${task.id}`;
 
-            const itemLeft = document.createElement('div');
-            itemLeft.className = 'item-left';
+            taskNode.innerHTML = `
+                <div class="task-row ${task.completed ? 'completed' : ''}" id="task-${task.id}">
+                    <div class="item-left">
+                        <input type="checkbox" ${task.completed ? 'checked' : ''} onclick="toggleCheck(${task.id}, this)">
+                        <span class="item-text">${task.text}</span>
+                    </div>
+                    <div class="actions">
+                        <button class="sub-btn" onclick="promptSubtask(${task.id})">+ Subtask</button>
+                        <button class="delete-btn" onclick="deleteTask(${task.id}, true)">Delete</button>
+                    </div>
+                </div>
+                <div class="sublist" id="sublist-${task.id}"></div>
+            `;
+            checklist.appendChild(taskNode);
+        }
 
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = task.completed;
-            checkbox.onclick = async () => {
-                await fetch(`/api/tasks/${task.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ completed: checkbox.checked })
-                });
-                li.classList.toggle('completed', checkbox.checked);
-            };
+        function renderSubtask(task) {
+            const sublistContainer = document.getElementById(`sublist-${task.parent_id}`);
+            if (!sublistContainer) return;
 
-            const textSpan = document.createElement('span');
-            textSpan.className = 'item-text';
-            textSpan.textContent = task.text;
+            const subtaskDiv = document.createElement('div');
+            subtaskDiv.className = `subtask-row ${task.completed ? 'completed' : ''}`;
+            subtaskDiv.id = `task-${task.id}`;
+            subtaskDiv.innerHTML = `
+                <div class="item-left">
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} onclick="toggleCheck(${task.id}, this)">
+                    <span class="item-text">${task.text}</span>
+                </div>
+                <button class="delete-btn" onclick="deleteTask(${task.id}, false)">Delete</button>
+            `;
+            sublistContainer.appendChild(subtaskDiv);
+        }
 
-            itemLeft.appendChild(checkbox);
-            itemLeft.appendChild(textSpan);
+        async function promptSubtask(parentId) {
+            const text = prompt("Enter subtask description:");
+            if (!text || !text.trim()) return;
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.onclick = async () => {
-                await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
-                li.remove();
-            };
+            const res = await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text.trim(), parent_id: parentId })
+            });
+            const newSub = await res.json();
+            renderSubtask(newSub);
+        }
 
-            li.appendChild(itemLeft);
-            li.appendChild(deleteBtn);
-            checklist.appendChild(li);
+        async function toggleCheck(id, checkbox) {
+            await fetch(`/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed: checkbox.checked })
+            });
+            document.getElementById(`task-${id}`).classList.toggle('completed', checkbox.checked);
+        }
+
+        async function deleteTask(id, isParent) {
+            await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+            if (isParent) {
+                document.getElementById(`node-${id}`).remove();
+            } else {
+                document.getElementById(`task-${id}`).remove();
+            }
         }
     </script>
 </body>
