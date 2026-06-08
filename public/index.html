@@ -11,34 +11,37 @@
         
         /* Compact Input Styling */
         .input-area { display: flex; gap: 6px; margin-bottom: 15px; }
-        input[type="text"] { flex: 1; padding: 8px 12px; border: 1px solid #2e2e35; border-radius: 4px; background-color: #202024; color: #fff; font-size: 14px; }
-        input[type="text"]:focus { outline: 2px solid #04d361; }
+        input[type="text"] { flex: 1; padding: 6px 10px; border: 1px solid #2e2e35; border-radius: 4px; background-color: #202024; color: #fff; font-size: 13px; }
+        input[type="text"]:focus { outline: 1px solid #04d361; }
         
         /* Smaller buttons */
-        button { padding: 8px 14px; background-color: #04d361; color: #000; border: none; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; }
+        button { padding: 6px 12px; background-color: #04d361; color: #000; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; }
         button:hover { background-color: #02b351; }
         
         ul { list-style: none; padding: 0; margin: 0; }
         
         /* Compact Parent Task styling */
-        .task-node { margin-bottom: 6px; }
-        .task-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background-color: #202024; border: 1px solid #2e2e35; border-radius: 4px; }
+        .task-node { margin-bottom: 12px; background-color: #1d1d22; border: 1px solid #2e2e35; border-radius: 6px; padding: 6px; }
+        .task-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; }
         
-        /* Sublist nesting */
-        .sublist { margin-left: 24px; margin-top: 4px; border-left: 2px solid #2e2e35; padding-left: 8px; }
-        .subtask-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background-color: #1a1a1e; border: 1px dashed #2e2e35; border-radius: 4px; margin-bottom: 4px; }
+        /* Sublist nesting and its tiny input row */
+        .sublist-wrapper { margin-left: 20px; margin-top: 4px; border-left: 1px solid #3e3e4a; padding-left: 8px; }
+        .sublist { margin-bottom: 6px; }
+        .subtask-row { display: flex; align-items: center; justify-content: space-between; padding: 3px 6px; background-color: #121214; border: 1px dashed #2e2e35; border-radius: 4px; margin-bottom: 4px; }
 
-        .item-left { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        /* Dedicated small input box under each item */
+        .inline-sub-input { display: flex; gap: 4px; margin-top: 4px; }
+        .inline-sub-input input[type="text"] { padding: 4px 8px; font-size: 11px; background-color: #121214; }
+        .inline-sub-input button { padding: 4px 8px; font-size: 11px; }
+
+        .item-left { display: flex; align-items: center; gap: 8px; font-size: 13px; }
         
         /* Shrunk Checkboxes */
-        input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: #04d361; margin: 0; }
+        input[type="checkbox"] { width: 13px; height: 13px; cursor: pointer; accent-color: #04d361; margin: 0; }
         
         .completed .item-text { text-decoration: line-through; color: #7c7c8a; }
         
         /* Ultra-compact action items */
-        .actions { display: flex; gap: 8px; align-items: center; }
-        .sub-btn { background: none; color: #04d361; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; }
-        .sub-btn:hover { text-decoration: underline; }
         .delete-btn { background: none; color: #f75a68; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; }
         .delete-btn:hover { text-decoration: underline; }
     </style>
@@ -66,14 +69,11 @@
             const res = await fetch('/api/tasks');
             const tasks = await res.json();
             
-            // Separate parents from subtasks
             const parents = tasks.filter(t => !t.parent_id);
             const subs = tasks.filter(t => t.parent_id);
 
-            // Render main tasks first
             parents.forEach(parent => {
                 renderParent(parent);
-                // Immediately render its children right beneath it
                 const children = subs.filter(s => s.parent_id === parent.id);
                 children.forEach(child => renderSubtask(child));
             });
@@ -89,13 +89,10 @@
                 body: JSON.stringify({ text })
             });
             const newTask = await res.json();
-            
-            // Explicitly make sure parent_id is null so renderParent handles it perfectly
-            newTask.parent_id = null; 
+            newTask.parent_id = null;
             renderParent(newTask);
-            
             itemInput.value = '';
-        }       
+        }
 
         function renderParent(task) {
             const taskNode = document.createElement('div');
@@ -106,16 +103,27 @@
                 <div class="task-row ${task.completed ? 'completed' : ''}" id="task-${task.id}">
                     <div class="item-left">
                         <input type="checkbox" ${task.completed ? 'checked' : ''} onclick="toggleCheck(${task.id}, this)">
-                        <span class="item-text">${task.text}</span>
+                        <span class="item-text"><b>${task.text}</b></span>
                     </div>
-                    <div class="actions">
-                        <button class="sub-btn" onclick="promptSubtask(${task.id})">+ Subtask</button>
-                        <button class="delete-btn" onclick="deleteTask(${task.id}, true)">Delete</button>
+                    <button class="delete-btn" onclick="deleteTask(${task.id}, true)">Delete</button>
+                </div>
+                
+                <div class="sublist-wrapper">
+                    <div class="sublist" id="sublist-${task.id}"></div>
+                    
+                    <div class="inline-sub-input">
+                        <input type="text" id="subInput-${task.id}" placeholder="Add subtask..." autocomplete="off">
+                        <button onclick="addSubtask(${task.id})">+</button>
                     </div>
                 </div>
-                <div class="sublist" id="sublist-${task.id}"></div>
             `;
             checklist.appendChild(taskNode);
+
+            // Add hit enter support for the nested input box
+            const subInput = document.getElementById(`subInput-${task.id}`);
+            subInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addSubtask(task.id);
+            });
         }
 
         function renderSubtask(task) {
@@ -135,17 +143,21 @@
             sublistContainer.appendChild(subtaskDiv);
         }
 
-        async function promptSubtask(parentId) {
-            const text = prompt("Enter subtask description:");
-            if (!text || !text.trim()) return;
+        async function addSubtask(parentId) {
+            const subInput = document.getElementById(`subInput-${parentId}`);
+            const text = subInput.value.trim();
+            if (!text) return;
 
             const res = await fetch('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text.trim(), parent_id: parentId })
+                body: JSON.stringify({ text: text, parent_id: parentId })
             });
             const newSub = await res.json();
             renderSubtask(newSub);
+            
+            subInput.value = '';
+            subInput.focus();
         }
 
         async function toggleCheck(id, checkbox) {
